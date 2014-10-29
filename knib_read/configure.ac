@@ -12,20 +12,17 @@ AC_CONFIG_MACRO_DIR([m4])
 LT_INIT
 AM_INIT_AUTOMAKE
 
-dnl RASPBERY PI - Try to help the user as much as possible! 
-AC_ARG_WITH(
-  [raspberrypi],
-  AS_HELP_STRING([--with-raspberrypi=SYSROOT_DIR], [Target RaspberryPi.]),
-  [
-    RPI_SYSROOT="$withval"
-    CPPFLAGS="$CPPFLAGS -I$RPI_SYSROOT/opt/vc/include"
-    LDFLAGS="$LDFLAGS -L$RPI_SYSROOT/opt/vc/lib -Wl,--rpath-link,$RPI_SYSROOT/opt/vc/lib,--rpath,/opt/vc/lib"
-  ],
-  [
-    RPI_SYSROOT=""
-    RPI_LDFLAGS=""
-    RPI_CPPFLAGS=""
-  ])
+#dnl RASPBERY PI - Try to help the user as much as possible! 
+#AC_ARG_WITH(
+#  [raspberrypi],
+#  AS_HELP_STRING([--with-raspberrypi=SYSROOT_DIR], [Target RaspberryPi.]),
+#  [
+#    RPI_SYSROOT="$withval"
+#    CPPFLAGS="$CPPFLAGS -I$RPI_SYSROOT/opt/vc/include"
+#    LDFLAGS="$LDFLAGS -L$RPI_SYSROOT/opt/vc/lib -Wl,--rpath-link,$RPI_SYSROOT/opt/vc/lib,--rpath,/opt/vc/lib"
+#  ],
+#  []
+#)
 
 # Checks for programs.
 AC_PROG_CC

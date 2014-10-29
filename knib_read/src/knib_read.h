@@ -4,12 +4,29 @@
 extern "C" {
 #endif
 
+enum knib_header_flags {
+
+        // Set IF video has an Alpha channel.
+        KNIB_ALPHA      = (1<<0),
+
+        // File compression flags. Must have exactly ONE of the following set.
+        KNIB_DATA_PLAIN = (1<<22), // texture data is NOT compressed.
+        KNIB_DATA_LZ4   = (2<<22), // texture data is LZ4 compressed.
+
+        // Texture format flags. Must have exactly ONE of the following set.
+        KNIB_TEX_GREY   = (1<<27), // texture data is in GreyScale format.
+        KNIB_TEX_ETC1   = (2<<27), // texture data is in ETC1 format
+        KNIB_TEX_DXT1   = (3<<27), // texture data is in DXT1 format
+};
+
 typedef size_t (*knib_read)(void *ptr, size_t size, size_t nmemb, void *stream);
 typedef int (*knib_seek)(void *stream, long offset, int whence);
 
 typedef struct knib_context * knib_handle;
 
 int knib_open_file( const char * fn, knib_handle * h );
+
+int knib_flags(struct knib_context * ctx);
 
 int knib_get_dimensions(knib_handle ctx, int *w, int *h);
 

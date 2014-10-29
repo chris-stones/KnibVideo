@@ -1,19 +1,4 @@
 
-enum knib_header_flags {
-
-	// Set IF video has an Alpha channel.
-	KNIB_ALPHA 	= (1<<0),
-
-	// File compression flags. Must have exactly ONE of the following set.
-	KNIB_DATA_PLAIN	= (1<<22), // texture data is NOT compressed.
-	KNIB_DATA_LZ4 	= (2<<22), // texture data is LZ4 compressed.
-
-	// Texture format flags. Must have exactly ONE of the following set.
-	KNIB_TEX_GREY	= (1<<27), // texture data is in GreyScale format.
-	KNIB_TEX_ETC1	= (2<<27), // texture data is in ETC1 format
-	KNIB_TEX_DXT1	= (3<<27), // texture data is in DXT1 format
-};
-
 struct knib_header {
 
 	char magick[4]; // must be "knib"
