@@ -17,6 +17,7 @@ enum knib_header_flags {
         KNIB_TEX_GREY   = (1<<27), // texture data is in GreyScale format.
         KNIB_TEX_ETC1   = (2<<27), // texture data is in ETC1 format
         KNIB_TEX_DXT1   = (3<<27), // texture data is in DXT1 format
+	KNIB_TEX_MASK   = (3<<27), // texture data mask.
 };
 
 typedef size_t (*knib_read)(void *ptr, size_t size, size_t nmemb, void *stream);
@@ -26,7 +27,7 @@ typedef struct knib_context * knib_handle;
 
 int knib_open_file( const char * fn, knib_handle * h );
 
-int knib_flags(struct knib_context * ctx);
+int knib_flags(knib_handle ctx);
 
 int knib_get_dimensions(knib_handle ctx, int *w, int *h);
 
