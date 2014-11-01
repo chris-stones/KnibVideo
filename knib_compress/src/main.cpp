@@ -491,7 +491,7 @@ int main(int argc, char * argv[]) {
 	imgImage * img = NULL;
 	if( imgAllocAndStatF(&img, args.ff_string , args.ff_from) == 0) {
 
-		KnibFile knibFile(argv[5]);
+		KnibFile knibFile(args.output_fn);
 		knibFile.SetSize( img->width, img->height );
 		bool alpha = !!(img->format & IMG_FMT_COMPONENT_ALPHA);
 		if( alpha) {
