@@ -13,20 +13,6 @@
  All channels are then LZ4 compressed together.
 */
 
-enum knib_header_flags {
-
-	// Set IF video has an Alpha channel.
-	KNIB_ALPHA 	= (1<<0),
-
-	// File compression flags. Must have exactly ONE of the following set.
-	KNIB_DATA_PLAIN	= (1<<22), // texture data is NOT compressed.
-	KNIB_DATA_LZ4 	= (2<<22), // texture data is LZ4 compressed.
-
-	// Texture format flags. Must have exactly ONE of the following set.
-	KNIB_TEX_GREY	= (1<<27), // texture data is in GreyScale format.
-	KNIB_TEX_ETC1	= (2<<27), // texture data is in ETC1 format
-	KNIB_TEX_DXT1	= (3<<27), // texture data is in DXT1 format
-};
 
 struct knib_header {
 
@@ -62,6 +48,7 @@ struct knib_set_header {
 	int next_set_offset; // file offset of the next
 };
 
+#include <knib_read.h>
 #include <libimg.h>
 #include <libimgutil.h>
 #include <stdexcept>
@@ -70,6 +57,7 @@ struct knib_set_header {
 #include <stdio.h>
 #include "lz4.h"
 #include "lz4hc.h"
+#include "args.h"
 
 class KnibFile {
 
@@ -223,7 +211,7 @@ public:
 		set.a_data_buffer_size = ASize;
 		set.next_set_offset = set.data_offset + set.data_size;
 
-		printf("writing set @ %d, next set @ %d\n",ftell(file), set.next_set_offset);
+		printf("writing set @ %ld, next set @ %d\n",ftell(file), set.next_set_offset);
 		Write(set);
 		Write(compressedbuffer, set.data_size);
 
@@ -320,12 +308,6 @@ class KnibSet {
 			imgFreeAll(planar);
 			return false;
 		}
-
-//		printf("Add() packed src \n\t%d,%d,%d,%d -> \n\tplanar %d %d %d %d [%d - %f%%]\n",
-//			src->linearsize[0],src->linearsize[1],src->linearsize[2],src->linearsize[3],
-//			planar->linearsize[0],planar->linearsize[1],planar->linearsize[2],planar->linearsize[3],
-//			planar->linearsize[0]+planar->linearsize[1]+planar->linearsize[2]+planar->linearsize[3],
-//			(float)(planar->linearsize[0]+planar->linearsize[1]+planar->linearsize[2]+planar->linearsize[3])/(float)(src->linearsize[0]));
 
 		// Copy Y data.
 		{
@@ -499,48 +481,69 @@ public:
 
 int main(int argc, char * argv[]) {
 
-	const char * fmt = NULL;
-	int from=0;
-	int to=0;
-	int inc=1;
+	arguments args = read_args(argc,argv);
 
-	if(argc>=6) {
-		fmt = argv[1];
-		from = atoi(argv[2]);
-		to = atoi(argv[3]);
-		inc = atoi(argv[4]);
+	// fix expected common mistake... from 10, to 1, increment 1.
+	//	change increment to -1.
+	if((args.ff_from > args.ff_to) && (args.ff_inc > 0))
+		args.ff_inc *= -1;
 
-		imgImage * img = NULL;
-		if( imgAllocAndStatF(&img, fmt, from) == 0) {
+	imgImage * img = NULL;
+	if( imgAllocAndStatF(&img, args.ff_string , args.ff_from) == 0) {
 
-			KnibFile knibFile(argv[5]);
-			knibFile.SetSize( img->width, img->height );
-			bool alpha = !!(img->format & IMG_FMT_COMPONENT_ALPHA);
-			if( alpha)
-				knibFile.SetFlags( KNIB_DATA_LZ4 | KNIB_TEX_DXT1 | KNIB_ALPHA );
-			else
-				knibFile.SetFlags( KNIB_DATA_LZ4 | KNIB_TEX_DXT1 );
-
-			KnibSet knibSet(img->width, img->height, alpha, IMG_FMT_DXT1); // FIXME: should be DXT1
-
-			int frames = 0;
-
-			for(int i=from; i<=to; i+=inc) {
-
-				printf("processing frame %d\n", i);
-				if(knibSet.Add( fmt, i, knibFile )) {
-					frames++;
-					knibFile.SetFrames(frames);
-				}
-			}
-
-			knibSet.Flush(knibFile);
-
-			return 0;
+		KnibFile knibFile(argv[5]);
+		knibFile.SetSize( img->width, img->height );
+		bool alpha = !!(img->format & IMG_FMT_COMPONENT_ALPHA);
+		if( alpha) {
+			printf("Source has alpha channel.");
+			args.flags |= KNIB_ALPHA;
 		}
+		else
+			printf("No alpha channel.");
+
+		knibFile.SetFlags( args.flags );
+
+		imgFormat textureFmt;
+		switch(args.flags & KNIB_TEX_MASK)
+		{
+		default:
+			printf("Unknown texture format.");
+			printf(" use --DXT1 for desktop targets,\n");
+			printf(" and --ETC1 for embedded targets.");
+			return -1;
+		case KNIB_TEX_DXT1:
+			textureFmt = IMG_FMT_DXT1;
+			break;
+		case KNIB_TEX_ETC1:
+			textureFmt = IMG_FMT_ETC1;
+			break;
+		}
+
+		KnibSet knibSet(img->width, img->height, alpha, textureFmt);
+
+		int frames = 0;
+
+		// support reading the frames backwards.
+		for(int i=args.ff_from;
+				((args.ff_from <= args.ff_to) && (i<=args.ff_to)) ||
+				((args.ff_from  > args.ff_to) && (i<=args.ff_to))  ;
+				i+=args.ff_inc) {
+
+			printf("processing frame %d\n", i);
+			if(knibSet.Add( args.ff_string, i, knibFile )) {
+				frames++;
+				knibFile.SetFrames(frames);
+			}
+		}
+
+		knibSet.Flush(knibFile);
+
+		return 0;
 	}
 
-	printf("USEAGE: %s, FORMAT FIRST_FRAME LAST_FRAME INCREMNT OUTPUT\n", argv[0]);
+	printf("Can't open ");
+	printf(args.ff_string, args.ff_from);
+	printf("\n");
 
 	return -1;
 }
