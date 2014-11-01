@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -17,7 +19,7 @@ enum knib_header_flags {
         KNIB_TEX_GREY   = (1<<27), // texture data is in GreyScale format.
         KNIB_TEX_ETC1   = (2<<27), // texture data is in ETC1 format
         KNIB_TEX_DXT1   = (3<<27), // texture data is in DXT1 format
-	KNIB_TEX_MASK   = (3<<27), // texture data mask.
+        KNIB_TEX_MASK   = (3<<27), // texture data mask.
 };
 
 typedef size_t (*knib_read)(void *ptr, size_t size, size_t nmemb, void *stream);
