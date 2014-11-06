@@ -93,7 +93,7 @@ static int _decode_set(struct knib_context * ctx) {
 		return -1; // TRUNCATED KNIB FILE!?
 	}
 
-	if(ctx->flags & KNIB_DATA_LZ4) {
+	if((ctx->flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4) {
 
 //		printf("read size = %d\n", ctx->cur_set.data_size);
 //		printf("LZ4_uncompress( %p, %p, %d)\n",ctx->read_buffer, ctx->decode_buffer, ctx->cur_set.data_uncompressed_size);
@@ -133,6 +133,9 @@ static int _init(struct knib_context * ctx) {
 			printf("cant read first set\n");
 			return -1;
 	}
+
+	printf("Allocating %d bytes read buffer\n",ctx->read_buffer_size);
+	printf("Allocating %d bytes decode buffer\n",ctx->decode_buffer_size);
 
 	// Allocate buffers for reading and decoding.
 	if((ctx->read_buffer = malloc(ctx->read_buffer_size))) {
@@ -264,11 +267,17 @@ int knib_get_frame_data(struct knib_context * ctx,
 		void ** CrData, int * CrSize,
 		void ** AData,  int * ASize)
 {
+	void * buff;
+	if((ctx->flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4)
+		buff = ctx->decode_buffer;
+	else
+		buff = ctx->read_buffer;
 
-	*YData  = (((char *)ctx->decode_buffer) + ctx->cur_set.y_data_buffer_offset);
-	*CbData = (((char *)ctx->decode_buffer) + ctx->cur_set.cb_data_buffer_offset);
-	*CrData = (((char *)ctx->decode_buffer) + ctx->cur_set.cr_data_buffer_offset);
-	*AData  = (((char *)ctx->decode_buffer) + ctx->cur_set.a_data_buffer_offset);
+	*YData  = (((char *)buff) + ctx->cur_set.y_data_buffer_offset);
+	*CbData = (((char *)buff) + ctx->cur_set.cb_data_buffer_offset);
+	*CrData = (((char *)buff) + ctx->cur_set.cr_data_buffer_offset);
+	*AData  = (((char *)buff) + ctx->cur_set.a_data_buffer_offset);
+
 	*YSize  = ctx->cur_set.y_data_buffer_size;
 	*CbSize = ctx->cur_set.cb_data_buffer_size;
 	*CrSize = ctx->cur_set.cr_data_buffer_size;

@@ -14,6 +14,7 @@ enum knib_header_flags {
         // File compression flags. Must have exactly ONE of the following set.
         KNIB_DATA_PLAIN = (1<<22), // texture data is NOT compressed.
         KNIB_DATA_LZ4   = (2<<22), // texture data is LZ4 compressed.
+        KNIB_DATA_MASK  = (3<<22), // data mask
 
         // Texture format flags. Must have exactly ONE of the following set.
         KNIB_TEX_GREY   = (1<<27), // texture data is in GreyScale format.
