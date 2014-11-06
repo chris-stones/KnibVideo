@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <libimgutil.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,6 +20,9 @@ struct arguments {
 
 	// File format flags.
 	int flags;
+
+	// Texture compression quality.
+	copy_quality_t quality;
 };
 
 struct arguments read_args(int argc, char ** argv );

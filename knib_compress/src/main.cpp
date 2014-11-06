@@ -71,16 +71,18 @@ class KnibFile {
 
 	knib_header file_header;
 
-	void AllocateCompressionBuffer(int uncompressed) {
+	void AllocateBuffers(int uncompressed, bool lz4Compressed) {
 
-		int required = LZ4_compressBound(uncompressed);
-
-		if(required > compressedbuffer_size) {
-			free(compressedbuffer);
-			if((compressedbuffer = malloc(required)))
-				compressedbuffer_size = required;
-			else
-				compressedbuffer_size = 0;
+		int required = 0;
+		if(lz4Compressed) {
+			required = LZ4_compressBound(uncompressed);
+			if(required > compressedbuffer_size) {
+				free(compressedbuffer);
+				if((compressedbuffer = malloc(required)))
+					compressedbuffer_size = required;
+				else
+					compressedbuffer_size = 0;
+			}
 		}
 		if(uncompressed > uncompressedbuffer_size) {
 			free(uncompressedbuffer);
@@ -89,7 +91,7 @@ class KnibFile {
 			else
 				uncompressedbuffer_size = 0;
 		}
-		if(compressedbuffer_size < required || uncompressedbuffer_size < uncompressed)
+		if((compressedbuffer_size < required) || (uncompressedbuffer_size < uncompressed))
 			throw std::runtime_error("out of memory!");
 	}
 
@@ -179,10 +181,9 @@ public:
 
 		const int uncompressedTextureSize = YSize+CbSize+CrSize+ASize;
 
-		AllocateCompressionBuffer(uncompressedTextureSize);
+		AllocateBuffers(uncompressedTextureSize,((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4));
 
 		{
-//			printf("OUTPUT SIZES %d %d %d %d\n",YSize,CbSize,CrSize,ASize);
 			char * unc_buff = static_cast<char *>(uncompressedbuffer);
 			memcpy(unc_buff,  YTex, YSize ); unc_buff += YSize;
 			memcpy(unc_buff, CbTex, CbSize); unc_buff += CbSize;
@@ -190,10 +191,14 @@ public:
 			memcpy(unc_buff,  ATex, ASize ); unc_buff += ASize;
 		}
 
-		const int compressedSize =
-			LZ4_compressHC((const char*)uncompressedbuffer, (char*)compressedbuffer,uncompressedTextureSize);
+		int compressedSize = uncompressedTextureSize;
 
-		char * unc_buff = static_cast<char *>(uncompressedbuffer);
+		if((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4) {
+			compressedSize =
+					LZ4_compressHC((const char*)uncompressedbuffer,
+						(char*)compressedbuffer,
+						uncompressedTextureSize);
+		}
 
 		knib_set_header set;
 		memset(&set, 0, sizeof set);
@@ -213,12 +218,17 @@ public:
 
 		printf("writing set @ %ld, next set @ %d\n",ftell(file), set.next_set_offset);
 		Write(set);
-		Write(compressedbuffer, set.data_size);
+		if((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4)
+			Write(compressedbuffer, set.data_size);
+		else
+			Write(uncompressedbuffer, set.data_size);
 
 		if(set.data_size > file_header.compressed_buffer_size)
 			file_header.compressed_buffer_size = set.data_size;
-		if(set.data_uncompressed_size > file_header.uncompressed_buffer_size)
-			file_header.uncompressed_buffer_size = set.data_uncompressed_size;
+
+		if((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4)
+			if(set.data_uncompressed_size > file_header.uncompressed_buffer_size)
+				file_header.uncompressed_buffer_size = set.data_uncompressed_size;
 
 		return true;
 	}
@@ -230,6 +240,8 @@ class KnibSet {
 	int index;
 	int w;
 	int h;
+
+	copy_quality_t quality;
 
 	imgImage * Y;
 	imgImage * Cb;
@@ -254,26 +266,22 @@ class KnibSet {
 
 	bool Output(KnibFile & knibFile) {
 
-		if(imguCopyImage(compressedY,Y)!=0)
+		if(imguCopyImage3(compressedY,Y,ERR_DIFFUSE_KERNEL_DEFAULT,quality)!=0) {
+			printf("Error compressing Y\n");
 			goto err;
-		if(imguCopyImage(compressedCb,Cb)!=0)
+		}
+		if(imguCopyImage3(compressedCb,Cb,ERR_DIFFUSE_KERNEL_DEFAULT,quality)!=0) {
+			printf("Error compressing Cb\n");
 			goto err;
-		if(imguCopyImage(compressedCr,Cr)!=0)
+		}
+		if(imguCopyImage3(compressedCr,Cr,ERR_DIFFUSE_KERNEL_DEFAULT,quality)!=0) {
+			printf("Error compressing Cr\n");
 			goto err;
-		if(A && imguCopyImage(compressedA,A)!=0)
+		}
+		if(A && imguCopyImage3(compressedA,A,ERR_DIFFUSE_KERNEL_DEFAULT,quality)!=0) {
+			printf("Error compressing A\n");
 			goto err;
-
-//		printf("COMPRESSED FORMATS %s %s %s %s\n",
-//				imguGetFormatName(compressedY->format),
-//				imguGetFormatName(compressedCb->format),
-//				imguGetFormatName(compressedCr->format),
-//				compressedA ? imguGetFormatName(compressedA->format) : "" );
-
-//		printf("TEX COMPRESS  Y %d -> %d (%f%%)\n", Y->linearsize[0], compressedY->linearsize[0], (float)compressedY->linearsize[0] / (float)Y->linearsize[0]);
-//		printf("TEX COMPRESS Cb %d -> %d (%f%%)\n",Cb->linearsize[0],compressedCb->linearsize[0], (float)compressedCb->linearsize[0] / (float)Cb->linearsize[0]);
-//		printf("TEX COMPRESS Cr %d -> %d (%f%%)\n",Cr->linearsize[0],compressedCr->linearsize[0], (float)compressedCr->linearsize[0] / (float)Cr->linearsize[0]);
-//		if(A)
-//			printf("TEX COMPRESS  A %d -> %d (%f%%)\n", A->linearsize[0], compressedA->linearsize[0], (float)compressedA->linearsize[0] / (float)A->linearsize[0]);
+		}
 
 		knibFile.Output(
 			compressedY->data.channel[0],
@@ -358,11 +366,27 @@ class KnibSet {
 		return true;
 	}
 
+	static int CrCbAdjustResolution(int res,int channel) {
+
+	  switch(channel) {
+	  case 1:
+	  case 2:
+		  return (res+1)>>1;
+	  default:
+		  return res;
+	  }
+	}
+
+	static int TexSize(int rawSize, int channel) {
+		return CrCbAdjustResolution(((rawSize+7)/8)*8,channel);
+	}
+
 public:
 
-	KnibSet(int w, int h, bool alpha, imgFormat textureFmt)
+	KnibSet(int w, int h, bool alpha, imgFormat textureFmt, copy_quality_t quality)
 		:	index(0),
 			w(w), h(h),
+			quality(quality),
 		 	Y(NULL),
 		 	Cb(NULL),
 		 	Cr(NULL),
@@ -403,13 +427,22 @@ public:
 			compressedA->format = compressedY->format;
 
 		// Set dimensions.
-		Y->width = compressedY->width = w;
-		Y->height = compressedY->height = h;
-		Cr->width = compressedCr->width = Cb->width = compressedCb->width = (w+1)>>1;
-		Cr->height = compressedCr->height = Cb->height = compressedCb->height = (h+1)>>1;
+		Y->width   = TexSize(w,0);
+		Y->height  = TexSize(h,0);
+		Cr->width  = Cb->width  = TexSize(w,1);
+		Cr->height = Cb->height = TexSize(h,1);
 		if(alpha) {
-			A->width = compressedA->width = Y->width;
-			A->height = compressedA->height = Y->height;
+			A->width  = Y->width;
+			A->height = Y->height;
+		}
+
+		compressedY->width   = Y->width;
+		compressedY->height  = Y->height;
+		compressedCb->width  = compressedCr->width  = Cb->width;
+		compressedCb->height = compressedCr->height = Cb->height;
+		if(alpha) {
+			compressedA->width  = compressedY->width;
+			compressedA->height = compressedY->height;
 		}
 
 		// Allocate allocate buffers.
@@ -461,9 +494,38 @@ public:
 		if(imgAllocAndReadF(&img, format, frame)!=0)
 			return false;
 
-		if(!Add(img, IMG_FMT_YUVA420P, index)){
+		if(img->width != this->w || img->height != this->h) {
+
+			imgImage * resized;
+			imgAllocImage(&resized);
+			resized->format = IMG_FMT_RGBA32;
+			resized->width = this->w;
+			resized->height = this->h;
+
+			printf("resizing input %dx%d -> %dx%d\n",img->width,img->height,this->w,this->h);
+
+			if( imgAllocPixelBuffers(resized) != 0 || imguCopyImage(resized,img) != 0) {
+				imgFreeAll(img);
+				imgFreeAll(resized);
+				return false;
+			}
+
 			imgFreeAll(img);
-			return false;
+			img = NULL;
+
+			if(!Add(resized, IMG_FMT_YUVA420P, index)){
+				imgFreeAll(resized);
+				return false;
+			}
+
+			imgFreeAll(resized);
+		}
+		else {
+			if(!Add(img, IMG_FMT_YUVA420P, index)){
+				imgFreeAll(img);
+				return false;
+			}
+			imgFreeAll(img);
 		}
 
 		index++;
@@ -472,7 +534,6 @@ public:
 			index = 0;
 		}
 
-		imgFreeAll(img);
 		return true;
 	}
 
@@ -493,6 +554,10 @@ int main(int argc, char * argv[]) {
 
 		KnibFile knibFile(args.output_fn);
 		knibFile.SetSize( img->width, img->height );
+
+		if(img->width  % 8) img->width  += 8 - (img->width  % 8);
+		if(img->height % 8) img->height += 8 - (img->height % 8);
+
 		bool alpha = !!(img->format & IMG_FMT_COMPONENT_ALPHA);
 		if( alpha) {
 			printf("Source has alpha channel.");
@@ -519,7 +584,7 @@ int main(int argc, char * argv[]) {
 			break;
 		}
 
-		KnibSet knibSet(img->width, img->height, alpha, textureFmt);
+		KnibSet knibSet(img->width, img->height, alpha, textureFmt, args.quality);
 
 		int frames = 0;
 
