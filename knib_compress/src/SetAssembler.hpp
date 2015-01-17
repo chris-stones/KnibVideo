@@ -11,11 +11,12 @@
 
 #include "KnibFile.hpp"
 
+template<typename WorkSetType>
 class SetAssembler {
 
 	std::thread thread;
 
-	typedef std::map<int, std::unique_ptr<WorkSet> > Map;
+	typedef std::map<int, std::unique_ptr<WorkSetType> > Map;
 	Map 						map;
 	std::mutex			  		mutex;
 	std::condition_variable 	writable;
@@ -27,15 +28,29 @@ class SetAssembler {
 	const int max_sets;
 	int next_set;
 
-	void Output(std::unique_ptr<WorkSet> ws) {
+	void Output(std::unique_ptr<PlanarWorkSet> ws) {
 
 		printf("SetAssembler: Output %d\n", ws->GetSetIndex());
 
-		bool result = knibFile->Output(
+		bool result = knibFile->OutputPlanar(
 			ws-> YData(), ws-> YSize(),
 			ws->CBData(), ws->CBSize(),
 			ws->CRData(), ws->CRSize(),
 			ws-> AData(), ws-> ASize());
+
+		if(!result)
+			throw std::runtime_error("output error!");
+	}
+
+	void Output(std::unique_ptr<PackedWorkSet> ws) {
+
+		printf("SetAssembler: Output %d\n", ws->GetSetIndex());
+
+		bool result = knibFile->OutputPacked(
+			ws->RGB0Data(), ws->RGB0Size(),
+			ws->RGB1Data(), ws->RGB1Size(),
+			ws->RGB2Data(), ws->RGB2Size(),
+			ws->A012Data(), ws->A012Size());
 
 		if(!result)
 			throw std::runtime_error("output error!");
@@ -46,16 +61,16 @@ class SetAssembler {
 		return (final_set_index < 0) || (final_set_index >= next_set);
 	}
 
-	std::unique_ptr<WorkSet> GetNextSet() {
+	std::unique_ptr<WorkSetType> GetNextSet() {
 
 		std::unique_lock<std::mutex> lock( mutex );
 
-		Map::iterator itor = map.end();
+		typename Map::iterator itor = map.end();
 
 		while( NeedMoreSets() && (itor = map.find(next_set)) == map.end())
 			readable.wait( lock );
 
-		std::unique_ptr<WorkSet> ws;
+		std::unique_ptr<WorkSetType> ws;
 		if( itor != map.end()) {
 			next_set++;
 			ws = std::move(itor->second);
@@ -70,7 +85,7 @@ class SetAssembler {
 
 		for(;;) {
 
-			std::unique_ptr<WorkSet> ws = GetNextSet();
+			std::unique_ptr<WorkSetType> ws = GetNextSet();
 
 			if(ws)
 				Output(std::move(ws));
@@ -94,7 +109,7 @@ public:
 		thread.join();
 	}
 
-	void Assemble( std::unique_ptr<WorkSet> set ) {
+	void Assemble( std::unique_ptr<WorkSetType> set ) {
 
 		std::unique_lock<std::mutex> lock( mutex );
 

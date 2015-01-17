@@ -8,12 +8,14 @@
 #include <deque>
 #include <condition_variable>
 
-#include "WorkSet.hpp"
+#include "PlanarWorkSet.hpp"
+#include "PackedWorkSet.hpp"
 
+template<typename WorkType>
 class ThreadPool
 {
 	typedef std::vector< std::thread> ThreadVector;
-	typedef std::deque< std::unique_ptr<WorkSet> >	  WorkDeque;
+	typedef std::deque< std::unique_ptr<WorkType> >	  WorkDeque;
 
 	ThreadVector 	threadVector;
 	WorkDeque 		workDeque;
@@ -25,16 +27,16 @@ class ThreadPool
 	std::condition_variable readable;
 	std::condition_variable writable;
 
-	SetAssembler setAssembler;
+	SetAssembler<WorkType> setAssembler;
 
-	std::unique_ptr<WorkSet> GetWork() {
+	std::unique_ptr<WorkType> GetWork() {
 
 		std::unique_lock<std::mutex> lock( mutex );
 
 		while( !noMoreWork && ( workDeque.size() == 0) )
 			readable.wait( lock );
 
-		std::unique_ptr<WorkSet> work;
+		std::unique_ptr<WorkType> work;
 
 		if(workDeque.size()) {
 
@@ -50,7 +52,7 @@ class ThreadPool
 
 	void Main() {
 
-		std::unique_ptr<WorkSet> work;
+		std::unique_ptr<WorkType> work;
 
 		while( ( work = std::move(GetWork()) ) ) {
 
@@ -60,7 +62,7 @@ class ThreadPool
 				setAssembler.Assemble( std::move(work) );
 			else {
 				printf("ThreadPool: WORK ERROR!\n");
-				throw std::runtime_error("WorkSet error.");
+				throw std::runtime_error("WorkType error.");
 			}
 		}
 	}
@@ -82,7 +84,7 @@ public:
 			threadVector[i].join();
 	}
 
-	void AddWork( std::unique_ptr<WorkSet> work ) {
+	void AddWork( std::unique_ptr<WorkType> work ) {
 
 		std::unique_lock<std::mutex> lock( mutex );
 

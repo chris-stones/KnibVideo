@@ -142,7 +142,97 @@ public:
 		file_header.frame_height = h;
 	}
 
-	bool Output( const void * YTex,  const int YSize,
+	bool OutputPacked(
+				const void * RGBa0Tex, const int RGBa0Size,
+				const void * RGBa1Tex, const int RGBa1Size,
+				const void * RGBa2Tex, const int RGBa2Size,
+				const void * A012Tex,  const int A012Size) {
+
+		if(A012Size && A012Tex)
+			file_header.flags |= KNIB_ALPHA;
+
+		OutputPackedPart( RGBa0Tex, RGBa0Size, A012Tex, A012Size );
+		OutputPackedPart( RGBa1Tex, RGBa1Size, nullptr, 0 );
+		OutputPackedPart( RGBa2Tex, RGBa2Size, nullptr, 0 );
+
+		return true;
+	}
+private:
+
+	bool OutputPackedPart( const void * RGBTex, const int RGBSize, const void * ATex, const int ASize) {
+
+		const int uncompressedTextureSize = RGBSize + ASize;
+		int compressedSize = uncompressedTextureSize;
+
+		AllocateBuffers(uncompressedTextureSize,((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4));
+
+		const void * useUncompressedBuffer = NULL;
+
+		if(ASize) {
+
+			char * unc_buff = static_cast<char *>(uncompressedbuffer);
+			memcpy(unc_buff, RGBTex, RGBSize ); unc_buff += RGBSize;
+			memcpy(unc_buff, ATex, ASize);
+
+			useUncompressedBuffer = uncompressedbuffer;
+
+			if((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4) {
+
+				compressedSize =
+						LZ4_compressHC((const char*)uncompressedbuffer,
+							(char*)compressedbuffer,
+							uncompressedTextureSize);
+			}
+		}
+		else {
+
+			useUncompressedBuffer = RGBTex;
+
+			if((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4) {
+				compressedSize =
+						LZ4_compressHC((const char*)RGBTex,
+							(char*)compressedbuffer,
+							uncompressedTextureSize);
+			}
+		}
+
+		knib_set_header set;
+		memset(&set, 0, sizeof set);
+
+		set.data_offset = ftell(file) + sizeof(set);
+		set.data_size = compressedSize;
+		set.data_uncompressed_size = uncompressedTextureSize;
+		set.y_data_buffer_offset = 0;
+		set.y_data_buffer_size = RGBSize;
+		set.cb_data_buffer_offset = 0;
+		set.cb_data_buffer_size = 0;
+		set.cr_data_buffer_offset = 0;
+		set.cr_data_buffer_size = 0;
+		set.a_data_buffer_offset = RGBSize;
+		set.a_data_buffer_size = ASize;
+		set.next_set_offset = set.data_offset + set.data_size;
+
+		printf("writing set @ %ld, next set @ %d\n",ftell(file), set.next_set_offset);
+		Write(set);
+		if((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4)
+			Write(compressedbuffer, set.data_size);
+		else
+			Write(useUncompressedBuffer, set.data_size);
+
+		if(set.data_size > file_header.compressed_buffer_size)
+			file_header.compressed_buffer_size = set.data_size;
+
+		if((file_header.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4)
+			if(set.data_uncompressed_size > file_header.uncompressed_buffer_size)
+				file_header.uncompressed_buffer_size = set.data_uncompressed_size;
+
+		return true;
+	}
+
+public:
+
+	bool OutputPlanar(
+				 const void * YTex,  const int YSize,
 				 const void * CbTex, const int CbSize,
 				 const void * CrTex, const int CrSize,
 				 const void * ATex,  const int ASize ) {
@@ -159,7 +249,7 @@ public:
 			memcpy(unc_buff,  YTex, YSize ); unc_buff += YSize;
 			memcpy(unc_buff, CbTex, CbSize); unc_buff += CbSize;
 			memcpy(unc_buff, CrTex, CrSize); unc_buff += CrSize;
-			memcpy(unc_buff,  ATex, ASize ); unc_buff += ASize;
+			memcpy(unc_buff,  ATex, ASize );
 		}
 
 		int compressedSize = uncompressedTextureSize;

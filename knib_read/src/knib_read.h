@@ -11,6 +11,12 @@ enum knib_header_flags {
         // Set IF video has an Alpha channel.
         KNIB_ALPHA      = (1<<0),
 
+        // Frame Format.
+        KNIB_CHANNELS_PLANAR = (1<<1), // ETC1 or DXT1 compressed YCbCr(A)
+        KNIB_CHANNELS_PACKED = (2<<1), // ETC1 or DXT1 compressed RGB(A)
+        KNIB_CHANNELS_MASK   = (3<<1), // frames format mask.
+
+
         // File compression flags. Must have exactly ONE of the following set.
         KNIB_DATA_PLAIN = (1<<22), // texture data is NOT compressed.
         KNIB_DATA_LZ4   = (2<<22), // texture data is LZ4 compressed.

@@ -26,15 +26,117 @@
 
 #include "Image.hpp"
 #include "ImageReader.hpp"
-#include "WorkSet.hpp"
+#include "PlanarWorkSet.hpp"
+#include "PackedWorkSet.hpp"
 #include "SetAssembler.hpp"
 #include "KnibFile.hpp"
 #include "ThreadPool.hpp"
 
+static int main_packed(arguments args) {
 
-int main(int argc, char * argv[]) {
+	// fix expected common mistake... from 10, to 1, increment 1.
+	//	change increment to -1.
+	if((args.ff_from > args.ff_to) && (args.ff_inc > 0))
+		args.ff_inc *= -1;
 
-	arguments args = read_args(argc,argv);
+	imgImage * img = NULL;
+	if( imgAllocAndStatF(&img, args.ff_string , args.ff_from) == 0) {
+
+		std::shared_ptr<KnibFile> knibFile( new KnibFile(args.output_fn) );
+
+		knibFile->SetSize( img->width, img->height );
+
+		if(img->width  % 4) img->width  += 4 - (img->width  % 4);
+		if(img->height % 4) img->height += 4 - (img->height % 4);
+
+		bool alpha = !!(img->format & IMG_FMT_COMPONENT_ALPHA);
+		if( alpha) {
+			printf("Source has alpha channel.\n");
+			args.flags |= KNIB_ALPHA;
+		}
+		else
+			printf("No alpha channel.\n");
+
+		const bool do_lz4 = (args.flags & KNIB_DATA_MASK) == KNIB_DATA_LZ4;
+
+		knibFile->SetFlags( args.flags );
+
+		imgFormat textureFmt;
+		switch(args.flags & KNIB_TEX_MASK)
+		{
+		default:
+			printf("Unknown texture format.");
+			printf(" use --DXT1 for desktop targets,\n");
+			printf(" and --ETC1 for embedded targets.");
+			return -1;
+		case KNIB_TEX_DXT1:
+			textureFmt = IMG_FMT_DXT1;
+			break;
+		case KNIB_TEX_ETC1:
+			textureFmt = IMG_FMT_ETC1;
+			break;
+		}
+
+		{
+			// TODO: assuming 8 threads is a good balance.
+			int threads = 8;
+
+			ImageReader imageReader(args.ff_string, args.ff_from, args.ff_to, args.ff_inc, 3);
+
+			ThreadPool<PackedWorkSet> threadPool(knibFile, threads);
+
+			std::vector<std::unique_ptr<Image> > images(3);
+			int frames = 0;
+			int set_index = 0;
+
+			while((images[frames%3] = std::move(imageReader.NextImage()))) {
+
+				++frames;
+
+				if((frames%3)==0) {
+
+					threadPool.AddWork( std::unique_ptr<PackedWorkSet>( new PackedWorkSet(
+							images,
+							img->width,
+							img->height,
+							alpha,
+							do_lz4,
+							textureFmt,
+							args.quality,
+							set_index++)));
+				}
+			}
+
+			if(frames%3) {
+				threadPool.AddWork( std::unique_ptr<PackedWorkSet>( new PackedWorkSet(
+					images,
+					img->width,
+					img->height,
+					alpha,
+					do_lz4,
+					textureFmt,
+					args.quality,
+					set_index++)));
+			}
+
+			imgFreeAll(img);
+
+			threadPool.NoMoreWork();
+
+			knibFile->SetFrames(frames);
+		}
+
+		return 0;
+	}
+
+	printf("Can't open ");
+	printf(args.ff_string, args.ff_from);
+	printf("\n");
+
+	return -1;
+}
+
+static int main_planar(arguments args) {
 
 	// fix expected common mistake... from 10, to 1, increment 1.
 	//	change increment to -1.
@@ -85,7 +187,7 @@ int main(int argc, char * argv[]) {
 
 			ImageReader imageReader(args.ff_string, args.ff_from, args.ff_to, args.ff_inc, 3);
 
-			ThreadPool threadPool(knibFile, threads);
+			ThreadPool<PlanarWorkSet> threadPool(knibFile, threads);
 
 			std::vector<std::unique_ptr<Image> > images(3);
 			int frames = 0;
@@ -97,7 +199,7 @@ int main(int argc, char * argv[]) {
 
 				if((frames%3)==0) {
 
-					threadPool.AddWork( std::unique_ptr<WorkSet>( new WorkSet(
+					threadPool.AddWork( std::unique_ptr<PlanarWorkSet>( new PlanarWorkSet(
 							images,
 							img->width,
 							img->height,
@@ -110,7 +212,7 @@ int main(int argc, char * argv[]) {
 			}
 
 			if(frames%3) {
-				threadPool.AddWork( std::unique_ptr<WorkSet>( new WorkSet(
+				threadPool.AddWork( std::unique_ptr<PlanarWorkSet>( new PlanarWorkSet(
 					images,
 					img->width,
 					img->height,
@@ -137,4 +239,22 @@ int main(int argc, char * argv[]) {
 
 	return -1;
 }
+
+int main(int argc, char * argv[]) {
+
+	arguments args = read_args(argc,argv);
+
+	// default planar.
+	if((args.flags & KNIB_CHANNELS_MASK) == 0)
+		args.flags |= KNIB_CHANNELS_PLANAR;
+
+	if((args.flags & KNIB_CHANNELS_MASK) == KNIB_CHANNELS_PLANAR)
+		main_planar( args );
+
+	// TODO: implement PACKED;
+
+	return -1;
+}
+
+
 

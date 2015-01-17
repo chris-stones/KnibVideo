@@ -3,7 +3,7 @@
 
 #include <memory>
 
-class WorkSet {
+class PlanarWorkSet {
 
 	int w;
 	int h;
@@ -29,68 +29,8 @@ class WorkSet {
 	std::unique_ptr<Image> work_input_img1;
 	std::unique_ptr<Image> work_input_img2;
 
-	void * compressedbuffer{};
-	int compressedbuffer_size{};
-
-	void * uncompressedbuffer{};
-	int uncompressedbuffer_size{};
-
 	void Dispose() {
-		free(compressedbuffer);
-		free(uncompressedbuffer);
-	}
 
-	void AllocateBuffers(int uncompressed, bool lz4Compressed) {
-
-		int required = 0;
-		if(lz4Compressed) {
-			required = LZ4_compressBound(uncompressed);
-			if(required > compressedbuffer_size) {
-				free(compressedbuffer);
-				if((compressedbuffer = malloc(required)))
-					compressedbuffer_size = required;
-				else
-					compressedbuffer_size = 0;
-			}
-		}
-		if(uncompressed > uncompressedbuffer_size) {
-			free(uncompressedbuffer);
-			if((uncompressedbuffer = malloc(uncompressed)))
-				uncompressedbuffer_size = uncompressed;
-			else
-				uncompressedbuffer_size = 0;
-		}
-		if((compressedbuffer_size < required) || (uncompressedbuffer_size < uncompressed))
-			throw std::runtime_error("out of memory!");
-	}
-
-	bool LZ4Compress( const void * YTex,  const int YSize,
-                      const void * CbTex, const int CbSize,
-                      const void * CrTex, const int CrSize,
-                      const void * ATex,  const int ASize ) {
-
-		const int uncompressedTextureSize = YSize+CbSize+CrSize+ASize;
-
-		AllocateBuffers(uncompressedTextureSize, do_lz4);
-
-		{
-			char * unc_buff = static_cast<char *>(uncompressedbuffer);
-			memcpy(unc_buff,  YTex, YSize ); unc_buff += YSize;
-			memcpy(unc_buff, CbTex, CbSize); unc_buff += CbSize;
-			memcpy(unc_buff, CrTex, CrSize); unc_buff += CrSize;
-			memcpy(unc_buff,  ATex, ASize ); unc_buff += ASize;
-		}
-
-		int compressedSize = uncompressedTextureSize;
-
-		if(do_lz4) {
-			compressedSize =
-					LZ4_compressHC((const char*)uncompressedbuffer,
-						(char*)compressedbuffer,
-						uncompressedTextureSize);
-		}
-
-		return true;
 	}
 
 	bool DoTextureCompression() {
@@ -193,7 +133,7 @@ class WorkSet {
 
 public:
 
-	WorkSet(std::vector<std::unique_ptr<Image> > &images, int w, int h, bool alpha, bool do_lz4, imgFormat textureFmt, copy_quality_t quality, int set_index)
+	PlanarWorkSet(std::vector<std::unique_ptr<Image> > &images, int w, int h, bool alpha, bool do_lz4, imgFormat textureFmt, copy_quality_t quality, int set_index)
 		:	w(w), h(h),
 		 	alpha(alpha),
 		 	do_lz4(do_lz4),
@@ -209,7 +149,7 @@ public:
 			work_input_img2 = std::move(images[2]);
 	}
 
-	~WorkSet() {
+	~PlanarWorkSet() {
 		Dispose();
 	}
 
@@ -276,15 +216,7 @@ public:
 		if(!DoTextureCompression())
 			return false;
 
-		return LZ4Compress(
-					compressedY->Data(0),
-					compressedY->LinearSize(0),
-					compressedCb->Data(0),
-					compressedCb->LinearSize(0),
-					compressedCr->Data(0),
-					compressedCr->LinearSize(0),
-					compressedA ? compressedA->Data(0) : NULL,
-					compressedA ? compressedA->LinearSize(0) : 0);
+		return true;
 	}
 
 	void * YData()  const { return compressedY ->Data(0); }

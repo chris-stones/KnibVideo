@@ -18,6 +18,9 @@ static struct argp_option options[] = {
   {"ETC1",     'E', 0,              OPTION_ARG_OPTIONAL,  "Use ETC1 texture compression" },
   {"LZ4",      'L', 0,              OPTION_ARG_OPTIONAL,  "Use LZ4 file compression" },
 
+  {"packed",   'k', 0,              OPTION_ARG_OPTIONAL,  "Use a packed pixel format." },
+  {"planar",   'n', 0,              OPTION_ARG_OPTIONAL,  "Use a planar pixel format." },
+
   {"quality",         'q', "HI|MED|LO", 0, "Texture compression Quality." },
   {"from-frame",      'f', "FRAME#",    0, "First Frame Number"   },
   {"to-frame",        't', "FRAME#",    0, "Last Frame Number"    },
@@ -40,6 +43,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     	break;
     case 'L':
     	arguments->flags |= KNIB_DATA_LZ4;
+    	break;
+    case 'k':
+    	arguments->flags |= KNIB_CHANNELS_PACKED;
+    	break;
+    case 'n':
+    	arguments->flags |= KNIB_CHANNELS_PLANAR;
     	break;
     case 'q':
     	{
