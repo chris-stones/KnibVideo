@@ -207,13 +207,15 @@ int knib_next_frame(struct knib_context * ctx) {
 
 	int next_set_offset = ctx->cur_set.next_set_offset;
 	ctx->cur_frame++;
-//	printf("if(ctx->cur_frame(%d) == ctx->frames(%d))\n", ctx->cur_frame, ctx->frames);
+
 	if(ctx->cur_frame == ctx->frames) {
 		ctx->cur_frame = 0;
 		next_set_offset = ctx->first_set;
 	}
 
-	if((ctx->cur_frame % 3) == 0) {
+	// Packed formats are updated every frame, Planar formats are updated every 3rd.
+	if(((ctx->flags & KNIB_CHANNELS_MASK) == KNIB_CHANNELS_PACKED) || ((ctx->cur_frame % 3) == 0)) {
+
 		int e;
 
 		if((*ctx->seek_func)(ctx->stream, next_set_offset, SEEK_SET) != 0) {
