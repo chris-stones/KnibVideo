@@ -249,9 +249,9 @@ int main(int argc, char * argv[]) {
 		args.flags |= KNIB_CHANNELS_PLANAR;
 
 	if((args.flags & KNIB_CHANNELS_MASK) == KNIB_CHANNELS_PLANAR)
-		main_planar( args );
-
-	// TODO: implement PACKED;
+		return main_planar( args );
+	else
+		return main_packed( args );
 
 	return -1;
 }

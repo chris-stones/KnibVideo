@@ -151,9 +151,9 @@ public:
 		if(A012Size && A012Tex)
 			file_header.flags |= KNIB_ALPHA;
 
-		OutputPackedPart( RGBa0Tex, RGBa0Size, A012Tex, A012Size );
-		OutputPackedPart( RGBa1Tex, RGBa1Size, nullptr, 0 );
-		OutputPackedPart( RGBa2Tex, RGBa2Size, nullptr, 0 );
+		if(RGBa0Tex) OutputPackedPart( RGBa0Tex, RGBa0Size, A012Tex, A012Size );
+		if(RGBa1Tex) OutputPackedPart( RGBa1Tex, RGBa1Size, nullptr, 0 );
+		if(RGBa2Tex) OutputPackedPart( RGBa2Tex, RGBa2Size, nullptr, 0 );
 
 		return true;
 	}
