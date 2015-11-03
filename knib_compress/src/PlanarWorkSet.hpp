@@ -55,6 +55,7 @@ class PlanarWorkSet {
 		return true;
 
 	err:
+		printf("DoTextureCompression - OutputError\n");
 		throw std::runtime_error("Output error");
 		return false;
 	}
@@ -64,8 +65,10 @@ class PlanarWorkSet {
 		std::unique_ptr<Image> planar = std::unique_ptr<Image>(
 			new Image(src->Width(), src->Height(), fmt));
 
-		if( !planar->CopyFrom(*src) )
+		if( !planar->CopyFrom(*src) ) {
+			printf("ConvertToYCbCrA error (!planar->CopyFrom(*src))\n");
 			return false;
+		}
 
 		src.reset();
 
@@ -185,8 +188,6 @@ public:
 
 		std::unique_ptr<Image> resized;
 
-		if(images[0] && (images[0]->Width() != this->w || images[0]->Height() != this->h))
-			resized = std::unique_ptr<Image>( new Image(this->w, this->h, IMG_FMT_RGBA32) );
 
 		for(int img_index=0; img_index<3; img_index++) {
 
@@ -198,18 +199,24 @@ public:
 				if(img->Width() != this->w || img->Height() != this->h) {
 
 					if(!resized)
-						return false;
+						resized = std::unique_ptr<Image>( new Image(this->w, this->h, IMG_FMT_RGBA32) );
 
-					if( !resized->CopyFrom(std::move(img)) )
+					if( !resized->CopyFrom(std::move(img)) ) {
+						printf("%s %s %d\n", __FILE__,__FUNCTION__,__LINE__);
 						return false;
+					}
 
-					if(!ConvertToYCbCrA(std::move(resized), IMG_FMT_YUVA420P, img_index))
+					if(!ConvertToYCbCrA(std::move(resized), IMG_FMT_YUVA420P, img_index)) {
+						printf("%s %s %d\n", __FILE__,__FUNCTION__,__LINE__);
 						return false;
+					}
 
 				}
 				else {
-					if(!ConvertToYCbCrA(std::move(img), IMG_FMT_YUVA420P, img_index))
+					if(!ConvertToYCbCrA(std::move(img), IMG_FMT_YUVA420P, img_index)) {
+						printf("%s %s %d\n", __FILE__,__FUNCTION__,__LINE__);
 						return false;
+					}
 				}
 			}
 		}
