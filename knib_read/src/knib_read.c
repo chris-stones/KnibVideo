@@ -17,6 +17,7 @@ struct knib_header {
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "lz4.h"
 
 #include "knib_read.h"
