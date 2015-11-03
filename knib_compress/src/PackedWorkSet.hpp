@@ -37,9 +37,18 @@ class PackedWorkSet {
 
 		unsigned char * src = static_cast<unsigned char *>( srcImage.Data(0) ) + 3;
 		unsigned char * dst = static_cast<unsigned char *>( srcImage.Data(0) ) + channel;
-		unsigned int len = dstImage.LinearSize(0);
-		for(unsigned int i=0;i<len;i++) {
-			*dst = *src;
+		unsigned int lenD = dstImage.LinearSize(0);
+		unsigned int lenS = srcImage.LinearSize(0);
+
+		if(lenD != lenS) {
+			printf("WARNING MoveToAlphaChannel:\n");
+			printf(" src size = %d\n", lenS);
+			printf(" dst size = %d\n", lenD);
+		}
+
+		for(unsigned int i=0;i<lenS && i<lenD;i+=4) {
+			unsigned char s = *src;
+			*dst = s;
 			*src = 0xff;
 			dst += 4;
 			src += 4;
@@ -68,6 +77,7 @@ class PackedWorkSet {
 		return true;
 
 	err:
+		printf("DoTextureCompression - output error.");
 		throw std::runtime_error("Output error");
 		return false;
 	}
@@ -125,11 +135,14 @@ public:
 			compressedA012 = std::unique_ptr<Image>( new Image(w, h, textureFmt) );
 
 		if(images[0])
-			RGBa0->CopyFrom( *images[0] );
+			if(RGBa0->CopyFrom( *images[0] ) == false)
+				return false;
 		if(images[1])
-			RGBa1->CopyFrom( *images[1] );
+			if(RGBa1->CopyFrom( *images[1] ) == false)
+				return false;
 		if(images[2])
-			RGBa2->CopyFrom( *images[2] );
+			if(RGBa2->CopyFrom( *images[2] ) == false)
+				return false;
 
 		if(alpha) {
 			memset( A012->Data(0), 0xff, A012->LinearSize(0) );

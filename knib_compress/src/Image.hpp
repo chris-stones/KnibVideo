@@ -8,7 +8,7 @@
 
 class Image {
 
-	imgImage * img {};
+	imgImage * img {nullptr};
 
 public:
 	enum open_enum {
@@ -134,6 +134,11 @@ public:
 	void * Data(int channel) {
 
 		return img->data.channel[channel];
+	}
+
+	int Format() const {
+
+		return img->format;
 	}
 };
 
