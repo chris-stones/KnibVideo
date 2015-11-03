@@ -34,6 +34,8 @@ typedef int (*knib_seek)(void *stream, long offset, int whence);
 
 typedef struct knib_context * knib_handle;
 
+int knib_open_custom( knib_read read_func, knib_seek seek_func, void * stream, knib_handle * h );
+
 int knib_open_file( const char * fn, knib_handle * h );
 
 int knib_flags(knib_handle ctx);
