@@ -36,7 +36,7 @@ class PackedWorkSet {
 	void MoveAlphaToChannel( Image & dstImage, Image & srcImage, int channel ) {
 
 		unsigned char * src = static_cast<unsigned char *>( srcImage.Data(0) ) + 3;
-		unsigned char * dst = static_cast<unsigned char *>( srcImage.Data(0) ) + channel;
+		unsigned char * dst = static_cast<unsigned char *>( dstImage.Data(0) ) + channel;
 		unsigned int lenD = dstImage.LinearSize(0);
 		unsigned int lenS = srcImage.LinearSize(0);
 
